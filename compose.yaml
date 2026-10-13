@@ -1,0 +1,85 @@
+name: campus-placement
+x-common-env: &common-env
+  BIND_ADDRESS: 0.0.0.0
+  DEMO_PASSWORD: ${DEMO_PASSWORD:-placement-demo}
+  SERVICE_PASSWORD: ${SERVICE_PASSWORD:-local-service-demo}
+  DB_PASSWORD: campus-local
+  STUDENTS_URL: http://student-service:8081
+  RECRUITMENT_URL: http://recruitment-service:8082
+  APPLICATIONS_URL: http://application-service:8083
+  NOTIFICATIONS_URL: http://notification-service:8084
+  MESSAGING: rabbit
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_USER: campus
+  RABBITMQ_PASSWORD: campus-local
+x-java: &java
+  restart: unless-stopped
+  depends_on:
+    postgres: {condition: service_healthy}
+    rabbitmq: {condition: service_healthy}
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: campus_admin
+      POSTGRES_PASSWORD: campus-local-admin
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/init-databases.sql:/docker-entrypoint-initdb.d/01-databases.sql:ro
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U campus_admin -d postgres]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: campus
+      RABBITMQ_DEFAULT_PASS: campus-local
+    volumes: [rabbitdata:/var/lib/rabbitmq]
+    ports: ["127.0.0.1:15672:15672"]
+    healthcheck:
+      test: [CMD, rabbitmq-diagnostics, -q, ping]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+  student-service:
+    <<: *java
+    build: {context: ., args: {SERVICE: student-service}}
+    environment:
+      <<: *common-env
+      DB_URL: jdbc:postgresql://postgres:5432/campus_student
+      DB_USER: campus_student
+  recruitment-service:
+    <<: *java
+    build: {context: ., args: {SERVICE: recruitment-service}}
+    environment:
+      <<: *common-env
+      DB_URL: jdbc:postgresql://postgres:5432/campus_recruitment
+      DB_USER: campus_recruitment
+  application-service:
+    <<: *java
+    build: {context: ., args: {SERVICE: application-service}}
+    environment:
+      <<: *common-env
+      DB_URL: jdbc:postgresql://postgres:5432/campus_application
+      DB_USER: campus_application
+  notification-service:
+    <<: *java
+    build: {context: ., args: {SERVICE: notification-service}}
+    environment:
+      <<: *common-env
+      DB_URL: jdbc:postgresql://postgres:5432/campus_notification
+      DB_USER: campus_notification
+  api-gateway:
+    build: {context: ., args: {SERVICE: api-gateway}}
+    environment: *common-env
+    depends_on: [student-service, recruitment-service, application-service, notification-service]
+    ports: ["127.0.0.1:8080:8080"]
+  frontend:
+    build: ./frontend
+    ports: ["127.0.0.1:5173:80"]
+    depends_on: [api-gateway]
+volumes:
+  pgdata:
+  rabbitdata:

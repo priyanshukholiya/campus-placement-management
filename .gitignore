@@ -1,0 +1,10 @@
+**/target/
+**/node_modules/
+frontend/dist/
+data/
+.run/
+.tools/
+.env
+*.log
+.idea/
+.vscode/

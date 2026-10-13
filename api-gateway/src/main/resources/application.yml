@@ -1,0 +1,22 @@
+spring:
+  cloud:
+    gateway:
+      server:
+        webmvc:
+          routes:
+            - id: students
+              uri: ${STUDENTS_URL:http://127.0.0.1:8081}
+              predicates:
+                - Path=/api/students/**
+            - id: recruitment
+              uri: ${RECRUITMENT_URL:http://127.0.0.1:8082}
+              predicates:
+                - Path=/api/drives/**
+            - id: applications
+              uri: ${APPLICATIONS_URL:http://127.0.0.1:8083}
+              predicates:
+                - Path=/api/applications/**,/api/reports,/api/outbox/**
+            - id: notifications
+              uri: ${NOTIFICATIONS_URL:http://127.0.0.1:8084}
+              predicates:
+                - Path=/api/notifications/**

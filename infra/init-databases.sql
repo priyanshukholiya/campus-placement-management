@@ -1,0 +1,16 @@
+CREATE USER campus_student WITH PASSWORD 'campus-local';
+CREATE USER campus_recruitment WITH PASSWORD 'campus-local';
+CREATE USER campus_application WITH PASSWORD 'campus-local';
+CREATE USER campus_notification WITH PASSWORD 'campus-local';
+CREATE DATABASE campus_student OWNER campus_student;
+CREATE DATABASE campus_recruitment OWNER campus_recruitment;
+CREATE DATABASE campus_application OWNER campus_application;
+CREATE DATABASE campus_notification OWNER campus_notification;
+REVOKE CONNECT ON DATABASE campus_student FROM PUBLIC;
+REVOKE CONNECT ON DATABASE campus_recruitment FROM PUBLIC;
+REVOKE CONNECT ON DATABASE campus_application FROM PUBLIC;
+REVOKE CONNECT ON DATABASE campus_notification FROM PUBLIC;
+GRANT CONNECT ON DATABASE campus_student TO campus_student;
+GRANT CONNECT ON DATABASE campus_recruitment TO campus_recruitment;
+GRANT CONNECT ON DATABASE campus_application TO campus_application;
+GRANT CONNECT ON DATABASE campus_notification TO campus_notification;
