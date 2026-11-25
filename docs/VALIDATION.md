@@ -1,33 +1,54 @@
-# Validation — 13 October 2026
+# Validation — 22 November 2026
 
-## Passed
+Environment: Windows 11, JDK 25.0.1, Node.js 22.20.0, Docker Desktop (Engine 29.9.3, Compose v5.7.0, 12 CPUs / 10 GB allocated).
 
-- Maven reactor build for all six modules, targeting Java 21, using JDK 25.0.1 and Maven 3.9.11.
-- 12 backend tests: 5 eligibility/state-machine tests, 6 application integration tests, and 1 notification integration test. No failures or skipped tests. The workflow test also verifies that missing URL schemes and non-HTTP interview links return HTTP 400 without changing application history or notification events.
-- All five Java processes and Vite started, and all health checks returned HTTP 200.
-- 12 cross-service smoke checks against the real gateway and services: authentication, drive publication, eligibility, ineligible submission rejection, successful application and duplicate rejection, ownership and role checks, invalid transition rejection, full recruitment progression and four audit entries, reporting, outbox delivery, private inbox actions, and drive closure.
-- React production build.
-- Frontend dependency audit: zero reported vulnerabilities at validation time.
-- Docker Compose configuration parsing.
-- Maven wrapper resolves Maven 3.9.11 when its download temporary directory is inside the workspace. The build script now uses a project-local temporary directory automatically.
+## Docker (PostgreSQL + RabbitMQ)
 
-The smoke run used fresh file-backed H2 databases and the authenticated HTTP notification transport. All records are synthetic.
+- `docker compose up --build -d` built all images and started all 8 containers.
+- From empty volumes, `docker compose up -d --wait` reported every container healthy after **45 seconds**, with no container restarts and no errors in the service logs.
+- `node scripts/smoke.mjs` passed all **12** checks against the Docker gateway.
+- Notifications went through RabbitMQ: 4 messages published and 4 delivered for one workflow run, with the dead-letter queue `campus.notifications.failed` empty.
+- The nginx frontend served the app on `localhost:5173` and `127.0.0.1:5173` and passed `/api/*` through to the gateway.
+- Persistence: after `docker compose down` and `up`, the earlier applications and outbox events were still in PostgreSQL and the smoke tests passed again.
+- Startup ordering: every Java service, the gateway and the frontend have health checks. The gateway waits for all four services to be healthy, and the frontend waits for the gateway. The PostgreSQL check connects over TCP to the last database created by `infra/init-databases.sql`, so it cannot pass while first-time initialisation is still running.
+
+## Native Windows mode (H2 + HTTP transport)
+
+- `./mvnw verify`: all six modules built and the **12** backend tests passed (5 eligibility/state-machine, 6 application integration, 1 notification integration).
+- Frontend `npm ci` and `npm run build` succeeded.
+- `./scripts/start.ps1 -Smoke`: all five Java processes and Vite became healthy and the **12** smoke checks passed.
+- Restart on existing data: after `stop.ps1` and `start.ps1 -Smoke`, the services reopened the existing H2 databases for writing and the smoke checks passed again. This resolves the read-only reopen issue recorded in the previous validation, which was specific to that sandbox.
+- API calls through the Vite dev proxy on port 5173 returned HTTP 200.
+
+## Cross-platform build
+
+- `./mvnw -B verify` passed in a clean Linux container (`eclipse-temurin:21-jdk`), confirming the Unix Maven wrapper and the Java 21 minimum.
+- `.gitattributes` forces LF line endings for `mvnw`, shell scripts, Dockerfiles and nginx config, so Windows clones with `core.autocrlf=true` still produce working files for Linux, macOS and containers.
+
+## Functional spot check
+
+- Seeded eligibility matches the README walkthrough: `student2` is ineligible for Aster Labs ("Eligible branches: CSE, IT.", "Minimum CGPA is 7.00.") and eligible for Northstar Systems.
 
 ## Not yet verified
 
-- Docker containers, PostgreSQL runtime behavior, and RabbitMQ delivery: Docker Desktop's Linux engine was unavailable. The Compose file is syntax-checked only.
-- Browser interactions and rendered desktop/mobile layouts: the installed Edge browser could not start successfully inside the Windows sandbox, reporting access failures in its temporary profile. Frontend compilation is verified; visual QA is not.
-- Restarting existing H2 databases for further writes inside this sandbox: Java's `Files.isWritable` returned false even though `File.canWrite` and a read/write file open succeeded. H2 therefore reopened an existing database read-only. The full workflow passed with freshly initialized files. Persistence across ordinary PowerShell restarts outside the sandbox remains to be checked; no filesystem permissions were changed to bypass the issue.
+- Browser interaction and rendered desktop/mobile layouts. These were checked by HTTP status only, not visually.
+- Running on macOS hosts (Docker Desktop for Mac, including Apple Silicon). The images are built from multi-architecture base images but have not been run there.
+- PostgreSQL/RabbitMQ integration tests inside the Maven build (Testcontainers). The Docker checks above are manual.
 
-## Repeat locally
+## Repeat
 
-From the project folder in a normal PowerShell session:
-
-```powershell
-./scripts/build.ps1 -JavaHome 'C:/Program Files/Java/jdk-25'
-./scripts/start.ps1 -JavaHome 'C:/Program Files/Java/jdk-25' -Smoke
+```bash
+docker compose down -v                 # optional: start from empty volumes
+docker compose up --build -d --wait
+node scripts/smoke.mjs
 ```
 
-Open `http://127.0.0.1:5173`, sign in as `student`, `officer`, or `recruiter` with password `placement-demo`, and follow the workflow in the README. Then run `./scripts/stop.ps1`, restart, and confirm previous records remain editable.
+Native Windows mode:
 
-Do not delete existing databases as a routine fix for permission errors. Preserve them and check how the process was launched and whether another instance is using them.
+```powershell
+./scripts/build.ps1
+./scripts/start.ps1 -Smoke
+./scripts/stop.ps1
+```
+
+The smoke tests create synthetic records in the current database. All records are fictional.

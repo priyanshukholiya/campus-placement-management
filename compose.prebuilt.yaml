@@ -1,0 +1,28 @@
+# Runs the app from images published by .github/workflows/images.yml instead of
+# building from source. Use it together with compose.yaml:
+#
+#   docker compose -f compose.yaml -f compose.prebuilt.yaml up -d --wait
+#
+# IMAGE_REGISTRY and IMAGE_TAG select a fork's registry or a specific commit
+# (tags are "latest" and "sha-<full commit hash>").
+x-image: &prebuilt
+  pull_policy: always
+services:
+  student-service:
+    <<: *prebuilt
+    image: ${IMAGE_REGISTRY:-ghcr.io/priyanshukholiya}/campus-placement-student-service:${IMAGE_TAG:-latest}
+  recruitment-service:
+    <<: *prebuilt
+    image: ${IMAGE_REGISTRY:-ghcr.io/priyanshukholiya}/campus-placement-recruitment-service:${IMAGE_TAG:-latest}
+  application-service:
+    <<: *prebuilt
+    image: ${IMAGE_REGISTRY:-ghcr.io/priyanshukholiya}/campus-placement-application-service:${IMAGE_TAG:-latest}
+  notification-service:
+    <<: *prebuilt
+    image: ${IMAGE_REGISTRY:-ghcr.io/priyanshukholiya}/campus-placement-notification-service:${IMAGE_TAG:-latest}
+  api-gateway:
+    <<: *prebuilt
+    image: ${IMAGE_REGISTRY:-ghcr.io/priyanshukholiya}/campus-placement-api-gateway:${IMAGE_TAG:-latest}
+  frontend:
+    <<: *prebuilt
+    image: ${IMAGE_REGISTRY:-ghcr.io/priyanshukholiya}/campus-placement-frontend:${IMAGE_TAG:-latest}

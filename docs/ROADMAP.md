@@ -7,7 +7,7 @@
 - Drive creation, academic verification, eligibility and submission.
 - Status workflow, interviews, audit snapshots and distinct-student reporting.
 - Local persistent storage, PostgreSQL migrations, transactional outbox and idempotent notifications.
-- Local HTTP event transport plus a RabbitMQ configuration for Docker.
+- Local HTTP event transport plus RabbitMQ delivery in Docker, with health-checked Compose startup.
 - Unit, service integration and cross-service smoke tests.
 
 ## Next: identity and documents
@@ -24,6 +24,6 @@
 3. PostgreSQL/RabbitMQ integration tests using Testcontainers once Docker is running.
 4. Correlation IDs, tracing, structured logs and service metrics.
 5. OpenAPI generation and contract tests.
-6. CI configuration after the owner explicitly authorizes GitHub linking.
+6. ~~GitHub Actions CI and prebuilt container images~~ — done (`.github/workflows/`, `compose.prebuilt.yaml`).
 
 The original ten-week plan remains the long-term scope; this initial working increment does not claim to complete every item in that plan.

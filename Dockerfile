@@ -1,4 +1,6 @@
-FROM maven:3.9.11-eclipse-temurin-21 AS build
+# The build stage runs on the native build platform; JARs are architecture-independent,
+# so multi-arch images only differ in the runtime stage.
+FROM --platform=$BUILDPLATFORM maven:3.9.11-eclipse-temurin-21 AS build
 WORKDIR /build
 COPY pom.xml ./
 COPY common common

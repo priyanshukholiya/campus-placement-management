@@ -1,4 +1,5 @@
-FROM node:22-alpine AS build
+# The static bundle is architecture-independent, so build it on the native platform.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 WORKDIR /build
 COPY package*.json ./
 RUN npm ci

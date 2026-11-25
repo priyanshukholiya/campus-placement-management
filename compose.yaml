@@ -12,6 +12,14 @@ x-common-env: &common-env
   RABBITMQ_HOST: rabbitmq
   RABBITMQ_USER: campus
   RABBITMQ_PASSWORD: campus-local
+# Shared probe timing for the Spring Boot services. start_period covers a cold JVM start;
+# failed probes during that window do not count towards retries.
+x-health: &health
+  interval: 5s
+  timeout: 3s
+  retries: 12
+  start_period: 90s
+  start_interval: 2s
 x-java: &java
   restart: unless-stopped
   depends_on:
@@ -27,7 +35,9 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./infra/init-databases.sql:/docker-entrypoint-initdb.d/01-databases.sql:ro
     healthcheck:
-      test: [CMD-SHELL, pg_isready -U campus_admin -d postgres]
+      # Probe over TCP: during first-time init, Postgres runs a temporary server on the Unix
+      # socket only, so a socket probe could pass before init-databases.sql has finished.
+      test: [CMD-SHELL, pg_isready -h 127.0.0.1 -U campus_admin -d campus_notification]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -46,6 +56,7 @@ services:
   student-service:
     <<: *java
     build: {context: ., args: {SERVICE: student-service}}
+    healthcheck: {<<: *health, test: [CMD, curl, -fsS, -o, /dev/null, http://127.0.0.1:8081/actuator/health]}
     environment:
       <<: *common-env
       DB_URL: jdbc:postgresql://postgres:5432/campus_student
@@ -53,6 +64,7 @@ services:
   recruitment-service:
     <<: *java
     build: {context: ., args: {SERVICE: recruitment-service}}
+    healthcheck: {<<: *health, test: [CMD, curl, -fsS, -o, /dev/null, http://127.0.0.1:8082/actuator/health]}
     environment:
       <<: *common-env
       DB_URL: jdbc:postgresql://postgres:5432/campus_recruitment
@@ -60,6 +72,7 @@ services:
   application-service:
     <<: *java
     build: {context: ., args: {SERVICE: application-service}}
+    healthcheck: {<<: *health, test: [CMD, curl, -fsS, -o, /dev/null, http://127.0.0.1:8083/actuator/health]}
     environment:
       <<: *common-env
       DB_URL: jdbc:postgresql://postgres:5432/campus_application
@@ -67,19 +80,29 @@ services:
   notification-service:
     <<: *java
     build: {context: ., args: {SERVICE: notification-service}}
+    healthcheck: {<<: *health, test: [CMD, curl, -fsS, -o, /dev/null, http://127.0.0.1:8084/actuator/health]}
     environment:
       <<: *common-env
       DB_URL: jdbc:postgresql://postgres:5432/campus_notification
       DB_USER: campus_notification
   api-gateway:
+    restart: unless-stopped
     build: {context: ., args: {SERVICE: api-gateway}}
     environment: *common-env
-    depends_on: [student-service, recruitment-service, application-service, notification-service]
+    healthcheck: {<<: *health, test: [CMD, curl, -fsS, -o, /dev/null, http://127.0.0.1:8080/actuator/health]}
+    depends_on:
+      student-service: {condition: service_healthy}
+      recruitment-service: {condition: service_healthy}
+      application-service: {condition: service_healthy}
+      notification-service: {condition: service_healthy}
     ports: ["127.0.0.1:8080:8080"]
   frontend:
+    restart: unless-stopped
     build: ./frontend
+    healthcheck: {<<: *health, start_period: 10s, test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1/]}
     ports: ["127.0.0.1:5173:80"]
-    depends_on: [api-gateway]
+    depends_on:
+      api-gateway: {condition: service_healthy}
 volumes:
   pgdata:
   rabbitdata:
